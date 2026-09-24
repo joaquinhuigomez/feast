@@ -119,6 +119,45 @@ def test_python_values_to_proto_values_int_list_with_null_not_supported():
         _ = python_values_to_proto_values(arr, ValueType.INT32_LIST)
 
 
+@pytest.mark.parametrize(
+    "value_type, json_row, expected",
+    (
+        (ValueType.INT64_LIST, b"[1,2]", [1, 2]),
+        (ValueType.STRING_LIST, b'["a","b"]', ["a", "b"]),
+        (ValueType.BOOL_LIST, b"[true,false]", [True, False]),
+    ),
+)
+def test_python_values_to_proto_values_bytes_to_list_with_null_rows(
+    value_type, json_row, expected
+):
+    # Null rows in a JSON-encoded list column (e.g. Redshift SUPER) become empty
+    # values, as they do for sets, instead of crashing json.loads.
+    protos = python_values_to_proto_values([None, json_row, b"null"], value_type)
+    assert protos[0] == ProtoValue()
+    assert feast_value_type_to_python_type(protos[1]) == expected
+    assert protos[2] == ProtoValue()
+
+
+def test_python_values_to_proto_values_bytes_to_unix_timestamp_list():
+    from datetime import datetime, timezone
+
+    protos = python_values_to_proto_values(
+        [b"[1700000000,1700000001]"], ValueType.UNIX_TIMESTAMP_LIST
+    )
+    assert protos[0].WhichOneof("val") == "unix_timestamp_list_val"
+    assert feast_value_type_to_python_type(protos[0]) == [
+        datetime(2023, 11, 14, 22, 13, 20, tzinfo=timezone.utc),
+        datetime(2023, 11, 14, 22, 13, 21, tzinfo=timezone.utc),
+    ]
+    # Same proto as a native list of epoch seconds.
+    assert (
+        protos[0]
+        == python_values_to_proto_values(
+            [[1700000000, 1700000001]], ValueType.UNIX_TIMESTAMP_LIST
+        )[0]
+    )
+
+
 class TestMapTypes:
     """Test cases for MAP and MAP_LIST value types."""
 
