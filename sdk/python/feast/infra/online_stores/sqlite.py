@@ -81,14 +81,8 @@ def adapt_datetime_iso(val: datetime):
     return val.isoformat()
 
 
-def adapt_datetime_epoch(val: datetime):
-    """Adapt datetime.datetime to Unix timestamp."""
-    return int(val.timestamp())
-
-
 sqlite3.register_adapter(date, adapt_date_iso)
 sqlite3.register_adapter(datetime, adapt_datetime_iso)
-sqlite3.register_adapter(datetime, adapt_datetime_epoch)
 
 
 def convert_date(val: bytes):
@@ -102,8 +96,14 @@ def convert_datetime(val: bytes):
 
 
 def convert_timestamp(val: bytes):
-    """Convert Unix epoch timestamp to datetime.datetime object."""
-    return datetime.fromtimestamp(int(val))
+    """Convert ISO 8601 timestamp, or legacy Unix epoch, to datetime.datetime object."""
+    try:
+        epoch = int(val)
+    except ValueError:
+        return datetime.fromisoformat(val.decode())
+    # Rows written by the former epoch adapter hold int(naive_utc.timestamp()),
+    # which reads the naive UTC value as local time, so invert it the same way.
+    return datetime.fromtimestamp(epoch)
 
 
 sqlite3.register_converter("date", convert_date)
