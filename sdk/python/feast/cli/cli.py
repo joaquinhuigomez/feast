@@ -13,7 +13,7 @@
 # limitations under the License.
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from importlib.metadata import version as importlib_version
 from pathlib import Path
 from typing import List, Optional
@@ -396,10 +396,10 @@ def materialize_command(
             raise click.UsageError(
                 "Cannot specify START_TS or END_TS when --disable-event-timestamp is used"
             )
-        now = datetime.now()
+        now = utils._utc_now()
         # Query all available data and use current datetime as event timestamp
         start_date = datetime(
-            1970, 1, 1
+            1970, 1, 1, tzinfo=timezone.utc
         )  # Beginning of time to capture all historical data
         end_date = now
     else:

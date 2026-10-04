@@ -232,6 +232,37 @@ def test_materialize_request_model():
     assert req2.end_ts == "2021-01-02T00:00:00"
 
 
+@pytest.fixture
+def non_utc_local_tz(monkeypatch):
+    """Run the test with a local timezone that is always behind UTC."""
+    if not hasattr(time, "tzset"):
+        pytest.skip("time.tzset() is not available on Windows")
+    monkeypatch.setenv("TZ", "America/Los_Angeles")
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+def test_parse_materialize_timestamps_disable_event_timestamp_uses_utc(
+    non_utc_local_tz,
+):
+    from datetime import datetime, timedelta, timezone
+
+    from feast import utils
+    from feast.feature_server import MaterializeRequest, _parse_materialize_timestamps
+
+    request = MaterializeRequest(feature_views=["test"], disable_event_timestamp=True)
+    start_date, end_date = _parse_materialize_timestamps(request)
+
+    # FeatureStore.materialize treats naive datetimes as UTC, so the end bound
+    # must be the current UTC time, not the host's local wall-clock time.
+    drift = utils.make_tzaware(end_date) - datetime.now(timezone.utc)
+    assert abs(drift) < timedelta(seconds=30)
+    assert end_date.tzinfo is not None
+    assert start_date == datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+
 def _enable_offline_batching_config(
     fs, enabled: bool = True, batch_size: int = 1, batch_interval_seconds: int = 60
 ):
